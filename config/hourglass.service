@@ -1,0 +1,18 @@
+[Unit]
+Description=Hourglass screen time limiter daemon
+After=systemd-logind.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/hourglass daemon
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/var/lib/hourglass
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target
