@@ -17,7 +17,7 @@ pub struct State {
 pub struct UserState {
     pub date: NaiveDate,
     pub used_seconds: u64,
-    pub extension_seconds: u64,
+    pub extension_seconds: i64,
     #[serde(default)]
     pub warnings_sent: Vec<u64>,
 }
@@ -40,8 +40,7 @@ impl UserState {
     }
 
     pub fn remaining(&self, limit_seconds: u64) -> i64 {
-        let total = limit_seconds + self.extension_seconds;
-        total as i64 - self.used_seconds as i64
+        limit_seconds as i64 + self.extension_seconds - self.used_seconds as i64
     }
 }
 

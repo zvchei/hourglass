@@ -34,6 +34,13 @@ enum Commands {
         /// Extra minutes to grant
         minutes: u32,
     },
+    /// Revoke minutes from today's extension (can go negative)
+    Revoke {
+        /// Username
+        user: String,
+        /// Minutes to revoke
+        minutes: u32,
+    },
     /// Show status for one or all managed users
     Status {
         /// Username (omit for all users)
@@ -55,6 +62,7 @@ fn main() {
         Commands::SetLimit { user, minutes } => cmd_set_limit(&user, minutes),
         Commands::RemoveLimit { user } => cmd_remove_limit(&user),
         Commands::Extend { user, minutes } => cmd_extend(&user, minutes),
+        Commands::Revoke { user, minutes } => cmd_revoke(&user, minutes),
         Commands::Status { user } => {
             cmd_status(user.as_deref());
             Ok(())
@@ -96,12 +104,24 @@ fn cmd_remove_limit(user: &str) -> anyhow::Result<()> {
 }
 
 fn cmd_extend(user: &str, minutes: u32) -> anyhow::Result<()> {
-    let extra = minutes as u64 * 60;
+    let extra = minutes as i64 * 60;
     State::with_lock(|state| {
         let us = state.get_mut(user);
         us.ensure_today();
         us.extension_seconds += extra;
         println!("Granted {minutes} extra minutes to {user} (total extension: {}m).",
+            us.extension_seconds / 60);
+        Ok(())
+    })
+}
+
+fn cmd_revoke(user: &str, minutes: u32) -> anyhow::Result<()> {
+    let deduct = minutes as i64 * 60;
+    State::with_lock(|state| {
+        let us = state.get_mut(user);
+        us.ensure_today();
+        us.extension_seconds -= deduct;
+        println!("Revoked {minutes} minutes from {user} (total extension: {}m).",
             us.extension_seconds / 60);
         Ok(())
     })
