@@ -265,6 +265,44 @@ fn warnings_sent_tracking() {
 // --- Edge cases ---
 
 #[test]
+fn remaining_with_negative_extension() {
+    let us = UserState {
+        date: chrono::Local::now().date_naive(),
+        used_seconds: 2400,
+        extension_seconds: -600, // 10 minutes revoked
+        warnings_sent: vec![],
+    };
+    // limit=7200, ext=-600, used=2400 → remaining = 7200 - 600 - 2400 = 4200
+    assert_eq!(us.remaining(7200), 4200);
+}
+
+#[test]
+fn remaining_negative_extension_reduces_below_limit() {
+    let us = UserState {
+        date: chrono::Local::now().date_naive(),
+        used_seconds: 3600,
+        extension_seconds: -600, // 10 minutes revoked
+        warnings_sent: vec![],
+    };
+    // limit=3600, ext=-600, used=3600 → remaining = 3600 - 600 - 3600 = -600
+    assert_eq!(us.remaining(3600), -600);
+}
+
+#[test]
+fn revoke_more_than_extension_goes_negative() {
+    let us = UserState {
+        date: chrono::Local::now().date_naive(),
+        used_seconds: 2400,
+        extension_seconds: -600, // net: e.g. extended 20m (+1200s) then revoked 30m (-1800s) = -600s
+        warnings_sent: vec![],
+    };
+    // Negative extension deducts from the base limit
+    assert!(us.extension_seconds < 0);
+    // limit=3600, ext=-600, used=2400 → remaining = 3600 - 600 - 2400 = 600
+    assert_eq!(us.remaining(3600), 600);
+}
+
+#[test]
 fn state_multiple_users_independent() {
     let mut state = State::default();
     state.get_mut("alice").used_seconds = 3600;
