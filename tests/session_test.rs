@@ -46,130 +46,178 @@ fn parse_session_line_whitespace_only() {
 #[test]
 fn parse_x11_user_session() {
     let output = "Type=x11\nClass=user\nState=active\n";
-    let (gui, user, active, idle) = parse_session_properties(output);
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
     assert!(gui);
     assert!(user);
     assert!(active);
     assert!(!idle);
+    assert!(!locked);
 }
 
 #[test]
 fn parse_wayland_user_session() {
     let output = "Type=wayland\nClass=user\nState=active\n";
-    let (gui, user, active, idle) = parse_session_properties(output);
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
     assert!(gui);
     assert!(user);
     assert!(active);
     assert!(!idle);
+    assert!(!locked);
 }
 
 #[test]
 fn parse_mir_user_session() {
     let output = "Type=mir\nClass=user\nState=active\n";
-    let (gui, user, active, idle) = parse_session_properties(output);
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
     assert!(gui);
     assert!(user);
     assert!(active);
     assert!(!idle);
+    assert!(!locked);
 }
 
 #[test]
 fn parse_tty_session() {
     let output = "Type=tty\nClass=user\nState=active\n";
-    let (gui, user, active, idle) = parse_session_properties(output);
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
     assert!(!gui);
     assert!(user);
     assert!(active);
     assert!(!idle);
+    assert!(!locked);
 }
 
 #[test]
 fn parse_greeter_session() {
     let output = "Type=x11\nClass=greeter\nState=active\n";
-    let (gui, user, active, idle) = parse_session_properties(output);
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
     assert!(gui);
     assert!(!user);
     assert!(active);
     assert!(!idle);
+    assert!(!locked);
 }
 
 #[test]
 fn parse_unspecified_type() {
     let output = "Type=unspecified\nClass=user\nState=active\n";
-    let (gui, user, active, idle) = parse_session_properties(output);
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
     assert!(!gui);
     assert!(user);
     assert!(active);
     assert!(!idle);
+    assert!(!locked);
 }
 
 #[test]
 fn parse_empty_properties() {
-    let (gui, user, active, idle) = parse_session_properties("");
+    let (gui, user, active, idle, locked) = parse_session_properties("");
     assert!(!gui);
     assert!(!user);
     assert!(!active);
     assert!(!idle);
+    assert!(!locked);
 }
 
 #[test]
 fn parse_properties_with_extra_whitespace() {
     let output = "  Type=x11  \n  Class=user  \n  State=active  \n";
-    let (gui, user, active, idle) = parse_session_properties(output);
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
     assert!(gui);
     assert!(user);
     assert!(active);
     assert!(!idle);
+    assert!(!locked);
 }
 
 #[test]
 fn parse_properties_mixed_order() {
     let output = "Class=user\nType=wayland\nState=active\n";
-    let (gui, user, active, idle) = parse_session_properties(output);
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
     assert!(gui);
     assert!(user);
     assert!(active);
     assert!(!idle);
+    assert!(!locked);
 }
 
 #[test]
 fn parse_properties_extra_lines() {
     let output = "State=active\nType=x11\nClass=user\nSeat=seat0\n";
-    let (gui, user, active, idle) = parse_session_properties(output);
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
     assert!(gui);
     assert!(user);
     assert!(active);
     assert!(!idle);
+    assert!(!locked);
 }
 
 #[test]
 fn parse_idle_session() {
     let output = "Type=wayland\nClass=user\nState=active\nIdleHint=yes\n";
-    let (gui, user, active, idle) = parse_session_properties(output);
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
     assert!(gui);
     assert!(user);
     assert!(active);
     assert!(idle);
+    assert!(!locked);
 }
 
 #[test]
 fn parse_not_idle_session() {
     let output = "Type=x11\nClass=user\nState=active\nIdleHint=no\n";
-    let (gui, user, active, idle) = parse_session_properties(output);
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
     assert!(gui);
     assert!(user);
     assert!(active);
     assert!(!idle);
+    assert!(!locked);
 }
 
 #[test]
 fn parse_online_not_active_session() {
     let output = "Type=wayland\nClass=user\nState=online\nIdleHint=no\n";
-    let (gui, user, active, idle) = parse_session_properties(output);
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
     assert!(gui);
     assert!(user);
     assert!(!active);
     assert!(!idle);
+    assert!(!locked);
+}
+
+#[test]
+fn parse_locked_session() {
+    // Locking the screen (e.g. Super+L) sets LockedHint=yes even though the
+    // session is still active and IdleHint has not fired yet.
+    let output = "Type=wayland\nClass=user\nState=active\nIdleHint=no\nLockedHint=yes\n";
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
+    assert!(gui);
+    assert!(user);
+    assert!(active);
+    assert!(!idle);
+    assert!(locked);
+}
+
+#[test]
+fn parse_not_locked_session() {
+    let output = "Type=x11\nClass=user\nState=active\nLockedHint=no\n";
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
+    assert!(gui);
+    assert!(user);
+    assert!(active);
+    assert!(!idle);
+    assert!(!locked);
+}
+
+#[test]
+fn parse_locked_and_idle_session() {
+    let output = "Type=wayland\nClass=user\nState=active\nIdleHint=yes\nLockedHint=yes\n";
+    let (gui, user, active, idle, locked) = parse_session_properties(output);
+    assert!(gui);
+    assert!(user);
+    assert!(active);
+    assert!(idle);
+    assert!(locked);
 }
 
 // --- parse_display_property ---

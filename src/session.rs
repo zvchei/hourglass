@@ -21,23 +21,31 @@ pub fn parse_session_line(line: &str) -> Option<(&str, &str)> {
     }
 }
 
-/// Parse Type=, Class=, State=, and IdleHint= properties from `loginctl show-session` output.
-/// Returns (is_graphical, is_user_class, is_active, is_idle).
-pub fn parse_session_properties(output: &str) -> (bool, bool, bool, bool) {
+/// Parse Type=, Class=, State=, IdleHint=, and LockedHint= properties from
+/// `loginctl show-session` output.
+/// Returns (is_graphical, is_user_class, is_active, is_idle, is_locked).
+///
+/// `LockedHint=yes` is set by the session's screen locker (e.g. gnome-screensaver
+/// or gnome-shell when the user presses Super+L) even though `IdleHint` may still
+/// be `no`, since the lock is a manual, immediate action rather than an idle
+/// timeout. A locked session is therefore treated as idle for Hourglass purposes.
+pub fn parse_session_properties(output: &str) -> (bool, bool, bool, bool, bool) {
     let mut is_gui = false;
     let mut is_user = false;
     let mut is_active = false;
     let mut is_idle = false;
+    let mut is_locked = false;
     for line in output.lines() {
         match line.trim() {
             "Type=x11" | "Type=wayland" | "Type=mir" => is_gui = true,
             "Class=user" => is_user = true,
             "State=active" => is_active = true,
             "IdleHint=yes" => is_idle = true,
+            "LockedHint=yes" => is_locked = true,
             _ => {}
         }
     }
-    (is_gui, is_user, is_active, is_idle)
+    (is_gui, is_user, is_active, is_idle, is_locked)
 }
 
 /// Parse Display= property from loginctl show-session output.
@@ -83,7 +91,8 @@ fn is_graphical_session(session_id: &str) -> bool {
     let output = match Command::new("loginctl")
         .args(["show-session", session_id, "--no-pager",
                "--property=Type", "--property=Class",
-               "--property=State", "--property=IdleHint"])
+               "--property=State", "--property=IdleHint",
+               "--property=LockedHint"])
         .output()
     {
         Ok(o) => o,
@@ -91,8 +100,8 @@ fn is_graphical_session(session_id: &str) -> bool {
     };
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let (is_gui, is_user, is_active, is_idle) = parse_session_properties(&stdout);
-    is_gui && is_user && is_active && !is_idle
+    let (is_gui, is_user, is_active, is_idle, is_locked) = parse_session_properties(&stdout);
+    is_gui && is_user && is_active && !is_idle && !is_locked
 }
 
 /// Returns the session status for each managed user that has a graphical session.
@@ -116,19 +125,18 @@ pub fn graphical_user_statuses(usernames: &[&str]) -> HashMap<String, SessionSta
             let show = match Command::new("loginctl")
                 .args(["show-session", session_id, "--no-pager",
                        "--property=Type", "--property=Class",
-                       "--property=State", "--property=IdleHint"])
+                       "--property=State", "--property=IdleHint",
+                       "--property=LockedHint"])
                 .output()
             {
                 Ok(o) => o,
                 Err(_) => continue,
             };
             let out = String::from_utf8_lossy(&show.stdout);
-            let (is_gui, is_user, is_active, is_idle) = parse_session_properties(&out);
+            let (is_gui, is_user, is_active, is_idle, is_locked) = parse_session_properties(&out);
             if is_gui && is_user {
-                let status = if !is_active {
-                    SessionStatus::Idle // online but not foreground
-                } else if is_idle {
-                    SessionStatus::Idle
+                let status = if !is_active || is_idle || is_locked {
+                    SessionStatus::Idle // online but not foreground, idle, or locked
                 } else {
                     SessionStatus::Active
                 };
